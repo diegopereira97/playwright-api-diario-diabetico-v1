@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
   # TODO: reative o gatilho automático quando as APIs estiverem acessíveis no CI
   # (subindo como serviço neste workflow ou apontando para um ambiente remoto).
-  # push:
-  #   branches: [main]
-  # pull_request:
-  #   branches: [main]
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   api-tests:

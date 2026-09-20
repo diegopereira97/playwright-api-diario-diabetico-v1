@@ -1,0 +1,85 @@
+name: API Tests (Cucumber + Playwright)
+
+on:
+  workflow_dispatch:
+  # TODO: reative o gatilho automático quando as APIs estiverem acessíveis no CI
+  # (subindo como serviço neste workflow ou apontando para um ambiente remoto).
+  # push:
+  #   branches: [main]
+  # pull_request:
+  #   branches: [main]
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+
+    # TODO: caso as APIs "Serviço de Cadastro" e "Serviço de Glicose" tenham
+    # imagens Docker, o jeito mais simples de rodar tudo no mesmo runner é
+    # declará-las aqui como "services:" (equivalente a um docker-compose).
+    # Exemplo:
+    # services:
+    #   api:
+    #     image: sua-org/sua-api:latest
+    #     ports:
+    #       - 3000:3000
+
+    env:
+      BASE_URL: ${{ secrets.BASE_URL }}
+      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+      API_STARTUP_TIMEOUT_SECONDS: 120
+      API_STARTUP_INTERVAL_SECONDS: 5
+      TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+      TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Aguardar API do Render sair do cold start
+        run: npm run wait:api
+
+      - name: Rodar testes de API (gera JSON + dados do Allure em uma única execução)
+        run: npx cucumber-js --profile ci
+
+      - name: Publicar relatório de testes (JSON)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-report
+          path: reports/cucumber-report.json
+          retention-days: 15
+
+      # --- Relatório Allure (opcional) ---
+      # O Allure CLI precisa de Java, por isso o setup-java abaixo.
+      # OBS: sem um passo extra para restaurar allure-report/history de uma
+      # execução anterior (ex.: cache, ou publicando em uma branch/Pages
+      # fixa), o gráfico de tendência entre execuções não persiste no CI —
+      # cada run gera um relatório "zerado". Ajuste isso quando decidir onde
+      # publicar o relatório de forma persistente.
+      - name: Configurar Java (necessário para o Allure CLI)
+        if: always()
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Gerar relatório Allure (HTML)
+        if: always()
+        run: npx allure generate allure-results --clean -o allure-report
+
+      - name: Publicar relatório Allure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report
+          retention-days: 15

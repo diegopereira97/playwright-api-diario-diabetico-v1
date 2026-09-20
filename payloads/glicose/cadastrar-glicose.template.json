@@ -1,0 +1,8 @@
+{
+  "valor": "{{valor}}",
+  "atividade": "{{atividade}}",
+  "dataHora": "{{data}}",
+  "aplicouInsulinaRapida": "{{aplicouInsulinaRapida}}",
+  "insulinaRapidaUnidades": "{{insulinaRapida}}",
+  "observacao": "{{observacao}}"
+}

@@ -1,0 +1,29 @@
+{
+  "name": "api-tests-cucumber",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Testes de API (Cadastro + Glicose) com Playwright + Cucumber/Gherkin",
+  "scripts": {
+    "test": "cucumber-js",
+    "test:report": "cucumber-js --format json:reports/cucumber-report.json --format progress",
+    "test:tag": "cucumber-js --tags",
+    "pretest:report": "node scripts/ensure-dir.js reports",
+    "pretest:allure": "node scripts/clean-allure-results.js",
+    "test:allure": "cucumber-js --profile allure",
+    "allure:generate": "node scripts/prepare-allure-history.js && allure generate allure-results --clean -o allure-report",
+    "allure:open": "allure open allure-report",
+    "test:allure:report": "node scripts/run-allure-report.js",
+    "wait:api": "node scripts/wait-for-api.js",
+    "auth:clear-cache": "node scripts/clear-auth-cache.js"
+  },
+  "devDependencies": {
+    "@cucumber/cucumber": "^10.9.0",
+    "@playwright/test": "^1.47.0",
+    "@types/node": "^20.14.0",
+    "allure-commandline": "^2.32.0",
+    "allure-cucumberjs": "^3.0.9",
+    "dotenv": "^16.4.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}

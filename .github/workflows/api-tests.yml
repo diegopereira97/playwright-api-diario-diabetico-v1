@@ -38,8 +38,8 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Instalar dependências
         run: npm ci
@@ -64,11 +64,32 @@ jobs:
           restore-keys: |
             auth-token-cache-
 
-      - name: Aguardar API do Render sair do cold start
-        run: npm run wait:api
-
-      - name: Rodar testes de API (gera JSON + dados do Allure em uma única execução)
+              
+      - name: Diagnóstico do Cucumber
         run: |
+          echo "=== NODE ==="
+          node --version
+
+          echo "=== NPM ==="
+          npm --version
+
+          echo "=== CUCUMBER ==="
+          npx cucumber-js --version
+
+          echo "=== FEATURES ==="
+          find features -type f -name "*.feature" -print
+
+          echo "=== STEPS ==="
+          find src/steps -type f -name "*.ts" -print
+
+          echo "=== SUPPORT ==="
+          find src/support -type f -name "*.ts" -print
+
+           - name: Aguardar API do Render sair do cold start
+           run: npm run wait:api
+
+            - name: Rodar testes de API (gera JSON + dados do Allure em uma única execução)
+           run: |
               mkdir -p reports allure-results
               npx cucumber-js --profile ci
 

@@ -44,6 +44,26 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      # Persiste .cache/auth-token.json ENTRE execuções do workflow — sem
+      # isso, todo run começa de um checkout limpo e é forçado a logar de
+      # novo em /auth/login, gastando uma vaga do rate limit a CADA
+      # execução, mesmo rodando o workflow várias vezes seguidas em pouco
+      # tempo (foi exatamente isso que aconteceu enquanto depurávamos).
+      # Como o token dura 7 dias, isso deixa o CI se comportando igual ao
+      # ambiente local (que já reaproveita o cache em disco). Chave
+      # sempre única + restore-keys é o padrão do GitHub Actions pra
+      # simular "cache que sempre atualiza": todo run tenta restaurar o
+      # mais recente disponível e salva uma versão nova ao final.
+      # ⚠️ Só faça isso pra uma conta de TESTE dedicada — nunca cacheie
+      # token de usuário real, e confirme que .cache/ está no .gitignore.
+      - name: Cache do token de autenticação (usuário de teste)
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: auth-token-cache-${{ github.run_id }}
+          restore-keys: |
+            auth-token-cache-
+
       - name: Aguardar API do Render sair do cold start
         run: npm run wait:api
 

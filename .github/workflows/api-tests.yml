@@ -85,6 +85,11 @@ jobs:
           echo "=== SUPPORT ==="
           find src/support -type f -name "*.ts" -print
 
+      - name: Rodar testes de API
+        run: |
+          mkdir -p reports allure-results
+          npx cucumber-js --profile ci
+
            - name: Aguardar API do Render sair do cold start
            run: npm run wait:api
 

@@ -48,7 +48,9 @@ jobs:
         run: npm run wait:api
 
       - name: Rodar testes de API (gera JSON + dados do Allure em uma única execução)
-        run: npx cucumber-js --profile ci
+        run: |
+              mkdir -p reports allure-results
+              npx cucumber-js --profile ci
 
       - name: Publicar relatório de testes (JSON)
         if: always()

@@ -2,16 +2,23 @@ name: API Tests (Cucumber + Playwright)
 
 on:
   workflow_dispatch:
-  # TODO: reative o gatilho automático quando as APIs estiverem acessíveis no CI
-  # (subindo como serviço neste workflow ou apontando para um ambiente remoto).
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
+# Evita duas execuções ao mesmo tempo disputando o usuário de teste e o rate limit da API.
+concurrency:
+  group: api-tests-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
   api-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     # TODO: caso as APIs "Serviço de Cadastro" e "Serviço de Glicose" tenham
     # imagens Docker, o jeito mais simples de rodar tudo no mesmo runner é
@@ -44,27 +51,30 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
-      # Persiste .cache/auth-token.json ENTRE execuções do workflow — sem
-      # isso, todo run começa de um checkout limpo e é forçado a logar de
-      # novo em /auth/login, gastando uma vaga do rate limit a CADA
-      # execução, mesmo rodando o workflow várias vezes seguidas em pouco
-      # tempo (foi exatamente isso que aconteceu enquanto depurávamos).
-      # Como o token dura 7 dias, isso deixa o CI se comportando igual ao
-      # ambiente local (que já reaproveita o cache em disco). Chave
-      # sempre única + restore-keys é o padrão do GitHub Actions pra
-      # simular "cache que sempre atualiza": todo run tenta restaurar o
-      # mais recente disponível e salva uma versão nova ao final.
-      # ⚠️ Só faça isso pra uma conta de TESTE dedicada — nunca cacheie
-      # token de usuário real, e confirme que .cache/ está no .gitignore.
-      - name: Cache do token de autenticação (usuário de teste)
-        uses: actions/cache@v4
+      # Falha rápido e com mensagem clara se algum secret não estiver cadastrado
+      # (sem isso, o código cai nos valores padrão e o erro aparece como 401/ECONNREFUSED).
+      - name: Verificar secrets obrigatórios
+        run: |
+          for v in BASE_URL TEST_USER_EMAIL TEST_USER_PASSWORD; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Secret $v não está definido (Settings > Secrets and variables > Actions)"
+              exit 1
+            fi
+          done
+
+      # Persiste .cache/auth-token.json ENTRE execuções, para não gastar uma vaga
+      # do rate limit de /auth/login a cada run.
+      # Restore e save separados: o "actions/cache" único só salva quando o job
+      # termina com sucesso, então em runs que falham o token nunca era guardado.
+      # ⚠️ Somente para uma conta de TESTE dedicada. Confirme que .cache/ está no .gitignore.
+      - name: Restaurar cache do token de autenticação
+        uses: actions/cache/restore@v4
         with:
           path: .cache
           key: auth-token-cache-${{ github.run_id }}
           restore-keys: |
             auth-token-cache-
 
-              
       - name: Diagnóstico do Cucumber
         run: |
           echo "=== NODE ==="
@@ -85,18 +95,20 @@ jobs:
           echo "=== SUPPORT ==="
           find src/support -type f -name "*.ts" -print
 
-      - name: Rodar testes de API
+      - name: Aguardar API do Render sair do cold start
+        run: npm run wait:api
+
+      - name: Rodar testes de API (gera JSON + dados do Allure em uma única execução)
         run: |
           mkdir -p reports allure-results
           npx cucumber-js --profile ci
 
-           - name: Aguardar API do Render sair do cold start
-           run: npm run wait:api
-
-            - name: Rodar testes de API (gera JSON + dados do Allure em uma única execução)
-           run: |
-              mkdir -p reports allure-results
-              npx cucumber-js --profile ci
+      - name: Salvar cache do token de autenticação
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@v4
+        with:
+          path: .cache
+          key: auth-token-cache-${{ github.run_id }}
 
       - name: Publicar relatório de testes (JSON)
         if: always()
@@ -109,16 +121,13 @@ jobs:
       # --- Relatório Allure (opcional) ---
       # O Allure CLI precisa de Java, por isso o setup-java abaixo.
       # OBS: sem um passo extra para restaurar allure-report/history de uma
-      # execução anterior (ex.: cache, ou publicando em uma branch/Pages
-      # fixa), o gráfico de tendência entre execuções não persiste no CI —
-      # cada run gera um relatório "zerado". Ajuste isso quando decidir onde
-      # publicar o relatório de forma persistente.
+      # execução anterior, o gráfico de tendência não persiste no CI.
       - name: Configurar Java (necessário para o Allure CLI)
         if: always()
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
       - name: Gerar relatório Allure (HTML)
         if: always()

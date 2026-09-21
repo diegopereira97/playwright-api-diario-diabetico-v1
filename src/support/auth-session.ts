@@ -73,10 +73,13 @@ async function loginAndCache(): Promise<string> {
   const context = await request.newContext({ baseURL: getBaseURL() });
   try {
     const response = await withRateLimitRetry(() =>
-      context.post('/auth/login', {
-        data: { email: testUser.email, senha: testUser.senha },
-      }),
-    );
+    context.post('/auth/login', {
+      data: { email: testUser.email, senha: testUser.senha },
+    }),
+  {
+    requestName: 'POST /auth/login',
+  },
+);
     if (response.status() !== 200) {
       throw new Error(
         'Falha ao autenticar o usuário de teste (login compartilhado). ' +

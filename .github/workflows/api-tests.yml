@@ -2,33 +2,16 @@ name: API Tests (Cucumber + Playwright)
 
 on:
   workflow_dispatch:
+  # TODO: reative o gatilho automático quando as APIs estiverem acessíveis no CI
+  # (subindo como serviço neste workflow ou apontando para um ambiente remoto).
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
-# Evita duas execuções ao mesmo tempo disputando o usuário de teste e o rate limit da API.
-concurrency:
-  group: api-tests-${{ github.ref }}
-  cancel-in-progress: false
-
-permissions:
-  contents: read
-
 jobs:
   api-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    # TODO: caso as APIs "Serviço de Cadastro" e "Serviço de Glicose" tenham
-    # imagens Docker, o jeito mais simples de rodar tudo no mesmo runner é
-    # declará-las aqui como "services:" (equivalente a um docker-compose).
-    # Exemplo:
-    # services:
-    #   api:
-    #     image: sua-org/sua-api:latest
-    #     ports:
-    #       - 3000:3000
 
     env:
       BASE_URL: ${{ secrets.BASE_URL }}
@@ -45,70 +28,48 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: '24'
+          cache: 'npm'
 
       - name: Instalar dependências
         run: npm ci
 
-      # Falha rápido e com mensagem clara se algum secret não estiver cadastrado
-      # (sem isso, o código cai nos valores padrão e o erro aparece como 401/ECONNREFUSED).
-      - name: Verificar secrets obrigatórios
-        run: |
-          for v in BASE_URL TEST_USER_EMAIL TEST_USER_PASSWORD; do
-            if [ -z "${!v}" ]; then
-              echo "::error::Secret $v não está definido (Settings > Secrets and variables > Actions)"
-              exit 1
-            fi
-          done
-
-      # Persiste .cache/auth-token.json ENTRE execuções, para não gastar uma vaga
-      # do rate limit de /auth/login a cada run.
-      # Restore e save separados: o "actions/cache" único só salva quando o job
-      # termina com sucesso, então em runs que falham o token nunca era guardado.
-      # ⚠️ Somente para uma conta de TESTE dedicada. Confirme que .cache/ está no .gitignore.
-      - name: Restaurar cache do token de autenticação
-        uses: actions/cache/restore@v4
+      - name: Cache do token de autenticação (usuário de teste)
+        uses: actions/cache@v4
         with:
           path: .cache
           key: auth-token-cache-${{ github.run_id }}
           restore-keys: |
             auth-token-cache-
 
-      - name: Diagnóstico do Cucumber
-        run: |
-          echo "=== NODE ==="
-          node --version
-
-          echo "=== NPM ==="
-          npm --version
-
-          echo "=== CUCUMBER ==="
-          npx cucumber-js --version
-
-          echo "=== FEATURES ==="
-          find features -type f -name "*.feature" -print
-
-          echo "=== STEPS ==="
-          find src/steps -type f -name "*.ts" -print
-
-          echo "=== SUPPORT ==="
-          find src/support -type f -name "*.ts" -print
-
       - name: Aguardar API do Render sair do cold start
         run: npm run wait:api
 
+      # DEBUG TEMPORÁRIO: o job termina com "exit code 1" mesmo quando o
+      # allure-report mostra 100% dos cenários passando — ou seja, o
+      # processo do cucumber-js está saindo com código != 0 por algum
+      # motivo QUE NÃO é teste falho (provavelmente algo assíncrono
+      # rodando depois do relatório já ter sido escrito: um handle aberto,
+      # uma promise rejeitada sem catch, um processo em background que não
+      # terminou). O 2>&1 | tee grava TUDO (stdout+stderr) num arquivo,
+      # publicado como artefato abaixo — assim a gente vê o texto completo
+      # sem depender do visualizador de log do GitHub (que já cortou esse
+      # trecho duas vezes). O "exit ${PIPESTATUS[0]}" é essencial: sem
+      # isso, o "tee" mascara o código de saída real do cucumber-js e o
+      # step SEMPRE passaria, escondendo falhas de verdade.
       - name: Rodar testes de API (gera JSON + dados do Allure em uma única execução)
         run: |
-          mkdir -p reports allure-results
-          npx cucumber-js --profile ci
+              mkdir -p reports allure-results
+              npx cucumber-js --profile ci 2>&1 | tee cucumber-run-output.log
+              exit ${PIPESTATUS[0]}
 
-      - name: Salvar cache do token de autenticação
-        if: ${{ !cancelled() }}
-        uses: actions/cache/save@v4
+      - name: Publicar log bruto da execução (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          path: .cache
-          key: auth-token-cache-${{ github.run_id }}
+          name: cucumber-raw-log
+          path: cucumber-run-output.log
+          retention-days: 5
 
       - name: Publicar relatório de testes (JSON)
         if: always()
@@ -118,16 +79,12 @@ jobs:
           path: reports/cucumber-report.json
           retention-days: 15
 
-      # --- Relatório Allure (opcional) ---
-      # O Allure CLI precisa de Java, por isso o setup-java abaixo.
-      # OBS: sem um passo extra para restaurar allure-report/history de uma
-      # execução anterior, o gráfico de tendência não persiste no CI.
       - name: Configurar Java (necessário para o Allure CLI)
         if: always()
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
-          java-version: "17"
+          distribution: 'temurin'
+          java-version: '17'
 
       - name: Gerar relatório Allure (HTML)
         if: always()

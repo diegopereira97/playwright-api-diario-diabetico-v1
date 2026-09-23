@@ -2,8 +2,6 @@ name: API Tests (Cucumber + Playwright)
 
 on:
   workflow_dispatch:
-  # TODO: reative o gatilho automático quando as APIs estiverem acessíveis no CI
-  # (subindo como serviço neste workflow ou apontando para um ambiente remoto).
   push:
     branches: [main]
   pull_request:
@@ -45,30 +43,17 @@ jobs:
       - name: Aguardar API do Render sair do cold start
         run: npm run wait:api
 
-      # DEBUG: o job vinha terminando com "exit code 1" mesmo quando o
-      # allure-report mostrava 100% dos cenários passando. Causa provável:
-      # allure-results/ (e/ou reports/) commitados no Git com dados de uma
-      # execução antiga — "allure generate ... --clean" só limpa a pasta
-      # de SAÍDA (allure-report), não a de ENTRADA (allure-results). Sem o
-      # rm -rf abaixo, todo checkout trazia de volta os arquivos antigos, e
-      # o relatório final mostrava o resultado de uma run passada, mesmo
-      # quando o cucumber-js da execução atual travava ou falhava de
-      # verdade. O 2>&1 | tee + exit ${PIPESTATUS[0]} continuam aqui pra
-      # garantir a saída completa em log e o código de saída real.
+      # Removido o "| tee" que estava aqui: ele pode ter sido a própria
+      # causa do log vir truncado/com exit code errado (escrita
+      # assíncrona do Node cortada por process.exit(), possível EPIPE
+      # ao encanar pra outro processo). Rodando puro, sem pipe nenhum, o
+      # exit code que chega no shell é exatamente o que o cucumber-js
+      # realmente retornou — sem intermediário nenhum pra distorcer isso.
       - name: Rodar testes de API (gera JSON + dados do Allure em uma única execução)
         run: |
               rm -rf reports allure-results
               mkdir -p reports allure-results
-              npx cucumber-js --profile ci 2>&1 | tee cucumber-run-output.log
-              exit ${PIPESTATUS[0]}
-
-      - name: Publicar log bruto da execução (debug)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cucumber-raw-log
-          path: cucumber-run-output.log
-          retention-days: 5
+              npx cucumber-js --profile ci
 
       - name: Publicar relatório de testes (JSON)
         if: always()

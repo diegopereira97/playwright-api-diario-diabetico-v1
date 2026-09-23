@@ -9,24 +9,19 @@ Funcionalidade: Gestão de registros de Glicose
 
   @regressivo
   Esquema do Cenário: "<nomeCenario>"
-    Quando envio uma requisição para cadastrar um registro de glicose com valor <valor>, atividade "<atividade>", data "<data>", insulina rápida <insulinaRapida> e observação "<observacao>"
+    Quando envio uma requisição para cadastrar um registro de glicose com valor "<valor>", atividade "<atividade>", data "<data>", aplicouInsulinaRapida "<aplicouInsulinaRapida>", insulina rápida "<insulinaRapida>" e observação "<observacao>"
     Então a resposta deve ter o status 201
     E a resposta deve conter o campo "registro.id"
 
     @DDD-T26
     Exemplos:
-      |nomeCenario | valor | atividade | data       | insulinaRapida | observacao  |
-      |DDD-T26     | 120   | Jejum     | 2026-09-12 | 4              |             |
+      |nomeCenario | valor | atividade | data       |aplicouInsulinaRapida | insulinaRapida | observacao  |
+      |DDD-T26     | 120   | Jejum     | 2026-09-12 | true                |4              |             |
 
     @DDD-T27
     Exemplos:
-      |nomeCenario | valor | atividade | data       | insulinaRapida | observacao        |  
-      |DDD-T27     | 180   | Almoço    | 2026-09-12 | 6              | novo carboidratos |
-
-    @DDD-T28
-    Exemplos:
-      |nomeCenario | valor | atividade | data       | insulinaRapida | observacao        |  
-      |DDD-T28     | 95    | Dormir    | 2026-09-12 | 0              | novo dormir       |
+      |nomeCenario | valor | atividade | data       |aplicouInsulinaRapida | insulinaRapida | observacao        |  
+      |DDD-T27     | 180   | Almoço    | 2026-09-12 | true                 |6              | novo carboidratos |
 
 
   @DDD-T33 @regressivo
@@ -44,6 +39,12 @@ Funcionalidade: Gestão de registros de Glicose
     Então a resposta deve ter o status 400
     E a resposta deve conter a mensagem de erro apropriada "<mensagemEsperada>"
 
+    
+    @DDD-T28
+    Exemplos:
+      |nomeCenario | valor | atividade | data       | insulinaRapida | observacao   |  mensagemEsperada                                |aplicouInsulinaRapida |
+      |DDD-T28     | 95    | Dormir    | 2026-09-12 | 0              | novo dormir  | Informe a quantidade de insulina rápida aplicada | true |
+      
     @DDD-T29
     Exemplos:
       |nomeCenario | valor | atividade | data       | insulinaRapida | observacao        |mensagemEsperada        |aplicouInsulinaRapida|

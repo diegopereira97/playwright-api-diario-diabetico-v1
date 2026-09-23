@@ -15,7 +15,7 @@ Funcionalidade: Consulta de Atividades
   # documenta esse comportamento ATUAL. Se o correto for exigir autenticação,
   # troque a asserção para 401 assim que a API for corrigida — não delete
   # este cenário, ele serve de sinalizador para essa revisão.
-  @DDD-T26 @revisar-seguranca
+  @DDD-T2600 @revisar-seguranca
   Cenário: DDD-T26-Consultar atividades sem estar autenticado (comportamento atual: acesso liberado)
     Dado que não estou autenticado
     Quando envio uma requisição para consultar as atividades disponíveis

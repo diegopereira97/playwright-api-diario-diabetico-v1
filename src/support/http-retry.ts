@@ -3,24 +3,21 @@ import { APIResponse } from '@playwright/test';
 interface RetryOptions {
   retries?: number;
   baseDelayMs?: number;
-  /**
-   * Teto para o tempo de espera entre tentativas. Se a API pedir mais que
-   * isso via header Retry-After, NÃO ficamos travados esperando — melhor
-   * falhar rápido e avisar o tempo real, do que travar o terminal em uma
-   * suíte de testes local por vários minutos em silêncio.
-   */
   maxDelayMs?: number;
+
+  /**
+   * Identificação da requisição para facilitar o diagnóstico
+   * nos testes locais e no GitHub Actions.
+   */
+  requestName?: string;
 }
 
 /**
  * Reexecuta uma requisição quando o servidor responde 429 (rate limit),
- * respeitando o header Retry-After quando presente (com fallback para
- * backoff exponencial). Necessário porque os endpoints de autenticação
- * (/auth/*) desta API têm um limitador de tentativas que a suíte pode
- * atingir ao rodar vários cenários em sequência rápida.
+ * respeitando o header Retry-After quando presente.
  *
- * Cada tentativa (e a espera aplicada) é logada no console — se parecer
- * que "travou", é porque está aguardando o tempo pedido pela própria API.
+ * O retry é utilizado para evitar falhas imediatas em situações
+ * transitórias de rate limit.
  */
 export async function withRateLimitRetry(
   doRequest: () => Promise<APIResponse>,
@@ -29,39 +26,57 @@ export async function withRateLimitRetry(
   const retries = options.retries ?? 3;
   const baseDelayMs = options.baseDelayMs ?? 3000;
   const maxDelayMs = options.maxDelayMs ?? 15000;
+  const requestName = options.requestName ?? 'requisição';
 
   let response = await doRequest();
   let attempt = 0;
 
   while (response.status() === 429 && attempt < retries) {
     const retryAfterHeader = response.headers()['retry-after'];
-    const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : undefined;
+
+    const retryAfterSeconds = retryAfterHeader
+      ? Number(retryAfterHeader)
+      : undefined;
+
     const requestedDelayMs =
-      retryAfterSeconds && !Number.isNaN(retryAfterSeconds)
+      retryAfterSeconds !== undefined && !Number.isNaN(retryAfterSeconds)
         ? retryAfterSeconds * 1000
         : baseDelayMs * 2 ** attempt;
 
+    console.warn(
+      `[rate-limit] ${requestName} retornou HTTP 429. ` +
+        `Retry-After: ${retryAfterHeader ?? 'não informado'} | ` +
+        `espera calculada: ${Math.round(requestedDelayMs / 1000)}s`,
+    );
+
     if (requestedDelayMs > maxDelayMs) {
-      // A API pediu uma espera longa demais para um retry automático de
-      // teste (ex.: Retry-After de vários minutos). Em vez de travar o
-      // terminal em silêncio, desistimos aqui e devolvemos a resposta 429
-      // como está — o step vai falhar com uma mensagem clara em vez de um
-      // "hang" sem explicação.
       console.warn(
-        `[rate-limit] API pediu ${Math.round(requestedDelayMs / 1000)}s de espera ` +
+        `[rate-limit] ${requestName} pediu ${Math.round(requestedDelayMs / 1000)}s ` +
           `(acima do limite de ${Math.round(maxDelayMs / 1000)}s para retry automático). ` +
-          'Desistindo do retry — espere manualmente antes de rodar os testes de novo.',
+          'Desistindo do retry.',
       );
+
       return response;
     }
 
     console.warn(
-      `[rate-limit] Resposta 429 recebida. Aguardando ${Math.round(requestedDelayMs / 1000)}s ` +
-        `antes da tentativa ${attempt + 1}/${retries}...`,
+      `[rate-limit] Aguardando ${Math.round(requestedDelayMs / 1000)}s ` +
+        `antes da tentativa ${attempt + 1}/${retries} de ${requestName}...`,
     );
-    await new Promise((resolve) => setTimeout(resolve, requestedDelayMs));
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, requestedDelayMs),
+    );
+
     response = await doRequest();
     attempt += 1;
+  }
+
+  if (response.status() === 429) {
+    console.error(
+      `[rate-limit] ${requestName} continuou retornando HTTP 429 ` +
+        `após ${retries} tentativa(s) de retry.`,
+    );
   }
 
   return response;

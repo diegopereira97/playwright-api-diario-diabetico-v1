@@ -2,8 +2,6 @@ name: API Tests (Cucumber + Playwright)
 
 on:
   workflow_dispatch:
-  # TODO: reative o gatilho automático quando as APIs estiverem acessíveis no CI
-  # (subindo como serviço neste workflow ou apontando para um ambiente remoto).
   push:
     branches: [main]
   pull_request:
@@ -12,16 +10,6 @@ on:
 jobs:
   api-tests:
     runs-on: ubuntu-latest
-
-    # TODO: caso as APIs "Serviço de Cadastro" e "Serviço de Glicose" tenham
-    # imagens Docker, o jeito mais simples de rodar tudo no mesmo runner é
-    # declará-las aqui como "services:" (equivalente a um docker-compose).
-    # Exemplo:
-    # services:
-    #   api:
-    #     image: sua-org/sua-api:latest
-    #     ports:
-    #       - 3000:3000
 
     env:
       BASE_URL: ${{ secrets.BASE_URL }}
@@ -44,11 +32,26 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      - name: Cache do token de autenticação (usuário de teste)
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: auth-token-cache-${{ github.run_id }}
+          restore-keys: |
+            auth-token-cache-
+
       - name: Aguardar API do Render sair do cold start
         run: npm run wait:api
 
+      # Removido o "| tee" que estava aqui: ele pode ter sido a própria
+      # causa do log vir truncado/com exit code errado (escrita
+      # assíncrona do Node cortada por process.exit(), possível EPIPE
+      # ao encanar pra outro processo). Rodando puro, sem pipe nenhum, o
+      # exit code que chega no shell é exatamente o que o cucumber-js
+      # realmente retornou — sem intermediário nenhum pra distorcer isso.
       - name: Rodar testes de API (gera JSON + dados do Allure em uma única execução)
         run: |
+              rm -rf reports allure-results
               mkdir -p reports allure-results
               npx cucumber-js --profile ci
 
@@ -60,13 +63,6 @@ jobs:
           path: reports/cucumber-report.json
           retention-days: 15
 
-      # --- Relatório Allure (opcional) ---
-      # O Allure CLI precisa de Java, por isso o setup-java abaixo.
-      # OBS: sem um passo extra para restaurar allure-report/history de uma
-      # execução anterior (ex.: cache, ou publicando em uma branch/Pages
-      # fixa), o gráfico de tendência entre execuções não persiste no CI —
-      # cada run gera um relatório "zerado". Ajuste isso quando decidir onde
-      # publicar o relatório de forma persistente.
       - name: Configurar Java (necessário para o Allure CLI)
         if: always()
         uses: actions/setup-java@v4

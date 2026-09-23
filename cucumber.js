@@ -20,7 +20,6 @@ const common = {
   // terminais Windows (ex.: Git Bash/MINGW64) e pode esconder o resumo
   // final de falhas.
   format: ['progress'],
-  publishQuiet: true,
 };
 
 module.exports = {

@@ -94,6 +94,19 @@ When(
   },
 );
 
+When(
+  'consulto meus dados de usuário autenticado com um token inválido',
+  async function (this: ApiWorld) {
+    this.response = await this.apiContext.get('/auth/me', {
+      headers: {
+        Authorization: 'Bearer token-invalido',
+      },
+    });
+
+    await this.parseResponseBodyIfPossible();
+  },
+);
+
 Then('a resposta deve conter um token de acesso', async function (this: ApiWorld) {
   const token =
     this.responseBody?.token ?? this.responseBody?.accessToken ?? this.responseBody?.access_token;

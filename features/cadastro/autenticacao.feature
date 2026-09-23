@@ -132,7 +132,6 @@ Funcionalidade: Autenticação e cadastro de usuário
 
   @DDD-T23 @regressivo
   Cenário: DDD-T23-Consultar dados do usuário autenticado com token inválido
-    Dado que estou autenticado como o usuário de teste
     Quando consulto meus dados de usuário autenticado com um token inválido
     Então a resposta deve ter o status 401
 

@@ -45,20 +45,19 @@ jobs:
       - name: Aguardar API do Render sair do cold start
         run: npm run wait:api
 
-      # DEBUG TEMPORÁRIO: o job termina com "exit code 1" mesmo quando o
-      # allure-report mostra 100% dos cenários passando — ou seja, o
-      # processo do cucumber-js está saindo com código != 0 por algum
-      # motivo QUE NÃO é teste falho (provavelmente algo assíncrono
-      # rodando depois do relatório já ter sido escrito: um handle aberto,
-      # uma promise rejeitada sem catch, um processo em background que não
-      # terminou). O 2>&1 | tee grava TUDO (stdout+stderr) num arquivo,
-      # publicado como artefato abaixo — assim a gente vê o texto completo
-      # sem depender do visualizador de log do GitHub (que já cortou esse
-      # trecho duas vezes). O "exit ${PIPESTATUS[0]}" é essencial: sem
-      # isso, o "tee" mascara o código de saída real do cucumber-js e o
-      # step SEMPRE passaria, escondendo falhas de verdade.
+      # DEBUG: o job vinha terminando com "exit code 1" mesmo quando o
+      # allure-report mostrava 100% dos cenários passando. Causa provável:
+      # allure-results/ (e/ou reports/) commitados no Git com dados de uma
+      # execução antiga — "allure generate ... --clean" só limpa a pasta
+      # de SAÍDA (allure-report), não a de ENTRADA (allure-results). Sem o
+      # rm -rf abaixo, todo checkout trazia de volta os arquivos antigos, e
+      # o relatório final mostrava o resultado de uma run passada, mesmo
+      # quando o cucumber-js da execução atual travava ou falhava de
+      # verdade. O 2>&1 | tee + exit ${PIPESTATUS[0]} continuam aqui pra
+      # garantir a saída completa em log e o código de saída real.
       - name: Rodar testes de API (gera JSON + dados do Allure em uma única execução)
         run: |
+              rm -rf reports allure-results
               mkdir -p reports allure-results
               npx cucumber-js --profile ci 2>&1 | tee cucumber-run-output.log
               exit ${PIPESTATUS[0]}
